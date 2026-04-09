@@ -1,0 +1,129 @@
+
+import mysql.connector
+from datetime import datetime
+
+# 1. Função de conexão idêntica ao teste que funcionou
+def salvar_no_banco():
+    try:
+        conn = mysql.connector.connect(
+            host='127.0.0.1', 
+            user='root', 
+            password='', 
+            database='seguranca'
+        )
+        cursor = conn.cursor()
+        sql = "INSERT INTO deteccoes (mensagem) VALUES (%s)"
+        val = (f"Alerta: Movimento detectado as {datetime.now().strftime('%H:%M:%S')}",)
+        cursor.execute(sql, val)
+        conn.commit()
+        print(">>> Sucesso: Registro salvo no XAMPP!")
+        conn.close()
+    except Exception as e:
+        print(f"Erro ao salvar: {e}")
+
+# 2. Configuração da Câmera
+cap = cv2.VideoCapture(0)
+subtrator = cv2.createBackgroundSubtractorMOG2(history=100, varThreshold=50)
+
+linha_cerca = 320 # Meio da tela
+detectado = False
+
+print("Sistema rodando... Pressione 'q' para sair.")
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    # Máscara de movimento
+    mask = subtrator.apply(frame)
+    _, mask = cv2.threshold(mask, 254, 255, cv2.THRESH_BINARY)
+    contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Desenha a linha da cerca virtual
+    cv2.line(frame, (linha_cerca, 0), (linha_cerca, 480), (0, 0, 255), 2)
+
+    for c in contornos:
+        if cv2.contourArea(c) < 5000:
+            continue
+        
+        (x, y, w, h) = cv2.boundingRect(c)
+        centro_x = int(x        
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+        # Lógica de cruzamento
+        if centro_x > linha_cerca and not detectado:
+            salvar_no_banco()
+            detectado = True
+        elif centro_x < linha_cerca:
+            detectado = False
+
+    cv2.imshow("Cerca Virtual", frame)
+
+    if cv2.waitKey(30) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+
+import cv2
+import mysql.connector
+import os
+from datetime import datetime
+
+# Cria a pasta se ela não existir
+if not os.path.exists('capturas'):
+    os.makedirs('capturas')
+
+def salvar_deteccao(frame):
+    try:
+        # 1. Gerar nome único para a foto (ex: 20260409_153022.jpg)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        nome_arquivo = f"capturas/invasao_{timestamp}.jpg"
+        
+        # 2. Salvar a imagem na pasta
+        cv2.imwrite(nome_arquivo, frame)
+        print(f"Foto salva: {nome_arquivo}")
+
+        # 3. Salvar informações no banco XAMPP
+        conn = mysql.connector.connect(
+            host="127.0.0.1",
+            user="root",
+            password="",
+            database="seguranca"
+        )
+        cursor = conn.cursor()
+        
+        # Guardamos a mensagem e o caminho da foto
+        sql = "INSERT INTO deteccoes (mensagem, caminho_foto) VALUES (%s, %s)"
+        val = ("Indivíduo detectado", nome_arquivo)
+        
+        cursor.execute(sql, val)
+        conn.commit()
+        conn.close()
+        print("Dados salvos no banco com sucesso!")
+        
+    except Exception as e:
+        print(f"Erro ao processar salvamento: {e}")
+
+# --- No seu loop principal, quando o indivíduo passar a linha: ---
+# if centro_x > linha_cerca and not detectado:
+#     salvar_deteccao(frame) # Passamos o frame atual para a funçã
+#     detectado = True
+def salvar_no_banco(frame):
+    try:
+        # Use o caminho completo do seu Linux
+        diretorio = "/home/railanalves/Documentos/test-script/cam/capturas/"
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        nome_foto = f"{diretorio}invasao_{timestamp}.jpg"
+        
+        # Tenta salvar e verifica o retorno
+        sucesso_foto = cv2.imwrite(nome_foto, frame)
+        
+        if sucesso_foto:
+            print(f">>> FOTO SALVA COM SUCESSO EM: {nome_foto}")
+        else:
+            print("!!! ERRO CRÍTICO: OpenCV não conseguiu gravar o arquivo. Verifique permissões.")
+
+
+
